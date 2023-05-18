@@ -20,6 +20,7 @@ from pydvl.value.semivalues import (
     banzhaf_coefficient,
     beta_coefficient,
     compute_semivalues,
+    msr_banzhaf,
     semivalues,
     shapley_coefficient,
 )
@@ -92,6 +93,13 @@ def test_banzhaf(
         AbsoluteStandardError(0.02, 1.0) | MaxUpdates(300),
         **kwargs,
     )
+    check_values(values, exact_values, rtol=0.15)
+
+
+@pytest.mark.parametrize("num_samples", [5])
+def test_msr_banzhaf(num_samples: int, analytic_banzhaf):
+    u, exact_values = analytic_banzhaf
+    values = msr_banzhaf(u, AbsoluteStandardError(0.02, 1.0) | MaxUpdates(300))
     check_values(values, exact_values, rtol=0.15)
 
 

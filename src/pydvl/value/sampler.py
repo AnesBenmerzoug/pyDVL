@@ -174,8 +174,8 @@ class PowersetSampler(abc.ABC, Iterable[SampleType], Generic[T]):
         mean converges to the desired expression.
 
         By the Law of Large Numbers, the sample mean of $\delta_i(S_j)$
-        converges
-        to the expectation under the distribution from which $S_j$ is sampled.
+        converges to the expectation under the distribution from which $S_j$ is
+        sampled.
 
         $$ \frac{1}{m}  \sum_{j = 1}^m \delta_i (S_j) c (S_j) \longrightarrow
            \underset{S \sim \mathcal{D}_{- i}}{\mathbb{E}} [\delta_i (S) c (
@@ -223,8 +223,20 @@ class UniformSampler(PowersetSampler[T]):
     def weight(self, subset: NDArray[T]) -> float:
         """Correction coming from Monte Carlo integration so that the mean of
         the marginals converges to the value: the uniform distribution over the
-        powerset of a set with n-1 elements has mass 2^{n-1} over each subset.
-        The factor 1 / n corresponds to the one in the Shapley definition."""
+        powerset of a set with n-1 elements has mass 2^{n-1} over each subset."""
+        return float(2 ** (self._n - 1)) if self._n > 0 else 1.0
+
+
+class MSRSampler(PowersetSampler[T]):
+    def __iter__(self) -> Iterator[SampleType]:
+        if len(self) == 0:
+            return
+        while True:
+            subset = random_subset(self.indices)
+            yield -1, subset
+            self._n_samples += 1
+
+    def weight(self, subset: NDArray[T]) -> float:
         return float(2 ** (self._n - 1)) if self._n > 0 else 1.0
 
 
