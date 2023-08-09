@@ -27,6 +27,9 @@
   [PR #382](https://github.com/appliedAI-Initiative/pyDVL/pull/382)
 - Decouple ray.init from ParallelConfig 
   [PR #373](https://github.com/appliedAI-Initiative/pyDVL/pull/383)
+- Add seed parameter Shapley algorithms and support passing `seed` to
+  `MapReduceJob`, `PowersetSampler` and `concurrent.futures.Executor` based methods.
+  [PR #396](https://github.com/appliedAI-Initiative/pyDVL/pull/396)
 
 ## 0.6.1 - 🏗 Bug fixes and small improvement
 

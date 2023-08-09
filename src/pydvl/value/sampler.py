@@ -26,14 +26,23 @@ samplers, such as :class:`DeterministicCombinatorialSampler` and
 :class:`UniformSampler`. In contrast, slicing a :class:`PermutationSampler`
 creates a new sampler which iterates over the same indices.
 """
-
 from __future__ import annotations
 
 import abc
 import math
+import numbers
 from enum import Enum
 from itertools import permutations
-from typing import Generic, Iterable, Iterator, Sequence, Tuple, TypeVar, overload
+from typing import (
+    Generic,
+    Iterable,
+    Iterator,
+    Optional,
+    Sequence,
+    Tuple,
+    TypeVar,
+    overload,
+)
 
 import numpy as np
 from numpy.typing import NDArray
@@ -49,6 +58,8 @@ __all__ = [
     "RandomHierarchicalSampler",
     "UniformSampler",
 ]
+
+from pydvl.utils.types import SeedOrGenerator
 
 T = TypeVar("T", bound=np.generic)
 SampleType = Tuple[T, NDArray[T]]
@@ -90,6 +101,7 @@ class PowersetSampler(abc.ABC, Iterable[SampleType], Generic[T]):
         indices: NDArray[T],
         index_iteration: IndexIteration = IndexIteration.Sequential,
         outer_indices: NDArray[T] = None,
+        seed: SeedOrGenerator = None,
     ):
         """
         :param indices: The set of items (indices) to sample from.
@@ -98,12 +110,14 @@ class PowersetSampler(abc.ABC, Iterable[SampleType], Generic[T]):
             when sampling. Subsets are taken from the complement of each index
             in succession. For embarrassingly parallel computations, this set
             is sliced and the samplers are used to iterate over the slices.
+        :param seed: Seed for the random number generator.
         """
         self._indices = indices
         self._index_iteration = index_iteration
         self._outer_indices = outer_indices if outer_indices is not None else indices
         self._n = len(indices)
         self._n_samples = 0
+        self._rng = np.random.default_rng(seed)
 
     @property
     def indices(self) -> NDArray[T]:
@@ -135,7 +149,10 @@ class PowersetSampler(abc.ABC, Iterable[SampleType], Generic[T]):
                 yield idx
         elif self._index_iteration is PowersetSampler.IndexIteration.Random:
             while True:
-                yield np.random.choice(self._outer_indices, size=1).item()
+                yield self._rng.choice(self._outer_indices, size=1).item()
+
+    def seed(self, seed: SeedOrGenerator = None):
+        self._rng = np.random.default_rng(seed)
 
     @overload
     def __getitem__(self, key: slice) -> "PowersetSampler[T]":
@@ -255,7 +272,7 @@ class PermutationSampler(PowersetSampler[T]):
 
     def __iter__(self) -> Iterator[SampleType]:
         while True:
-            permutation = np.random.permutation(self._indices)
+            permutation = self._rng.permutation(self._indices)
             for i, idx in enumerate(permutation):
                 yield idx, permutation[:i]
                 self._n_samples += 1
@@ -300,7 +317,7 @@ class RandomHierarchicalSampler(PowersetSampler[T]):
     def __iter__(self) -> Iterator[SampleType]:
         while True:
             for idx in self.iterindices():
-                k = np.random.choice(np.arange(len(self._indices)), size=1).item()
+                k = self._rng.choice(np.arange(len(self._indices)), size=1).item()
                 subset = random_subset_of_size(self.complement([idx]), size=k)
                 yield idx, subset
                 self._n_samples += 1

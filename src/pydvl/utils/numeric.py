@@ -4,6 +4,7 @@ library.
 """
 from __future__ import annotations
 
+import numbers
 from itertools import chain, combinations
 from typing import Collection, Generator, Iterator, Optional, Tuple, TypeVar, overload
 
@@ -20,6 +21,8 @@ __all__ = [
     "random_subset_of_size",
     "top_k_value_accuracy",
 ]
+
+from pydvl.utils.types import SeedOrGenerator
 
 T = TypeVar("T", bound=np.generic)
 
@@ -59,21 +62,29 @@ def num_samples_permutation_hoeffding(eps: float, delta: float, u_range: float) 
     return int(np.ceil(np.log(2 / delta) * 2 * u_range**2 / eps**2))
 
 
-def random_subset(s: NDArray[T], q: float = 0.5) -> NDArray[T]:
+def random_subset(
+    s: NDArray[T],
+    q: float = 0.5,
+    seed: SeedOrGenerator = None,
+) -> NDArray[T]:
     """Returns one subset at random from ``s``.
 
     :param s: set to sample from
     :param q: Sampling probability for elements. The default 0.5 yields a
         uniform distribution over the power set of s.
+    :param seed: Seed for the random number generator.
     :return: the subset
     """
-    rng = np.random.default_rng()
+    rng = np.random.default_rng(seed)
     selection = rng.uniform(size=len(s)) > q
     return s[selection]
 
 
 def random_powerset(
-    s: NDArray[T], n_samples: Optional[int] = None, q: float = 0.5
+    s: NDArray[T],
+    n_samples: Optional[int] = None,
+    q: float = 0.5,
+    seed: SeedOrGenerator = None,
 ) -> Generator[NDArray[T], None, None]:
     """Samples subsets from the power set of the argument, without
     pre-generating all subsets and in no order.
@@ -91,6 +102,7 @@ def random_powerset(
         Defaults to `np.iinfo(np.int32).max`
     :param q: Sampling probability for elements. The default 0.5 yields a
         uniform distribution over the power set of s.
+    :param seed: Seed for the random number generator.
 
     :return: Samples from the power set of s
     :raises: TypeError: if the data `s` is not a NumPy array
@@ -106,26 +118,34 @@ def random_powerset(
     if n_samples is None:
         n_samples = np.iinfo(np.int32).max
     while total <= n_samples:
-        yield random_subset(s, q)
+        yield random_subset(s, q, seed=seed)
         total += 1
 
 
-def random_subset_of_size(s: NDArray[T], size: int) -> NDArray[T]:
+def random_subset_of_size(
+    s: NDArray[T],
+    size: int,
+    seed: SeedOrGenerator = None,
+) -> NDArray[T]:
     """Samples a random subset of given size uniformly from the powerset
     of ``s``.
 
     :param s: Set to sample from
     :param size: Size of the subset to generate
+    :param seed: Seed for the random number generator.
     :return: The subset
     :raises ValueError: If size > len(s)
     """
     if size > len(s):
         raise ValueError("Cannot sample subset larger than set")
-    rng = np.random.default_rng()
+    rng = np.random.default_rng(seed)
     return rng.choice(s, size=size, replace=False)
 
 
-def random_matrix_with_condition_number(n: int, condition_number: float) -> NDArray:
+def random_matrix_with_condition_number(
+    n: int,
+    condition_number: float,
+) -> NDArray:
     """Constructs a square matrix with a given condition number.
 
     Taken from:

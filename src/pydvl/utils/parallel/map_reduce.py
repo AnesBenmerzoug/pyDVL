@@ -1,11 +1,13 @@
+import numbers
 from itertools import accumulate, repeat
 from typing import Any, Collection, Dict, Generic, List, Optional, TypeVar, Union
 
 from joblib import Parallel, delayed
+from numpy.random import SeedSequence
 from numpy.typing import NDArray
 
 from ..config import ParallelConfig
-from ..types import MapFunction, ReduceFunction, maybe_add_argument
+from ..types import MapFunction, ReduceFunction, Seed, check_seed, maybe_add_argument
 from .backend import init_parallel_backend
 
 __all__ = ["MapReduceJob"]
@@ -37,6 +39,8 @@ class MapReduceJob(Generic[T, R]):
     :param config: Instance of :class:`~pydvl.utils.config.ParallelConfig`
         with cluster address, number of cpus, etc.
     :param n_jobs: Number of parallel jobs to run. Does not accept 0
+    :param seed_sequence: Seed sequence for spawning seeds to the subprocesses. If None
+        is passed no seed parameter will be passed to the map function.
 
     :Examples:
 
@@ -78,6 +82,7 @@ class MapReduceJob(Generic[T, R]):
         *,
         n_jobs: int = -1,
         timeout: Optional[float] = None,
+        seed: Seed = None,
     ):
         self.config = config
         parallel_backend = init_parallel_backend(self.config)
@@ -95,6 +100,7 @@ class MapReduceJob(Generic[T, R]):
 
         self._map_func = maybe_add_argument(map_func, "job_id")
         self._reduce_func = reduce_func
+        self._seed = check_seed(seed)
 
     def __call__(
         self,
@@ -108,10 +114,22 @@ class MapReduceJob(Generic[T, R]):
         verbose = 50 - self.config.logging_level
         with Parallel(backend=backend, n_jobs=self.n_jobs, verbose=verbose) as parallel:
             chunks = self._chunkify(self.inputs_, n_chunks=self.n_jobs)
+
+            # Allow functions which don't accept or need a seed parameter.
+            lst_add_kwargs: List[Dict[str, Union[int, SeedSequence]]] = [
+                {"job_id": j} for j in range(len(chunks))
+            ]
+            if self._seed is not None:
+                lst_add_kwargs = [
+                    {**d, **{"seed": seed}}
+                    for d, seed in zip(lst_add_kwargs, self._seed.spawn(len(chunks)))
+                ]
+
             map_results: List[R] = parallel(
-                delayed(self._map_func)(next_chunk, job_id=j, **self.map_kwargs)
-                for j, next_chunk in enumerate(chunks)
+                delayed(self._map_func)(next_chunk, **add_kwargs, **self.map_kwargs)
+                for next_chunk, add_kwargs in zip(chunks, lst_add_kwargs)
             )
+
         reduce_results: R = self._reduce_func(map_results, **self.reduce_kwargs)
         return reduce_results
 

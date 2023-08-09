@@ -4,10 +4,12 @@ from concurrent.futures import FIRST_COMPLETED, wait
 
 import numpy as np
 from deprecate import deprecated
+from numpy.random import SeedSequence
 
 from pydvl.utils import ParallelConfig, Utility, running_moments
 from pydvl.utils.parallel.backend import effective_n_jobs, init_parallel_backend
 from pydvl.utils.parallel.futures import init_executor
+from pydvl.utils.types import Seed
 from pydvl.value import ValuationResult
 from pydvl.value.stopping import MaxChecks, StoppingCriterion
 
@@ -164,6 +166,7 @@ def _permutation_montecarlo_one_step(
     u: Utility,
     truncation: TruncationPolicy,
     algorithm: str,
+    seed: Seed = None,
 ) -> ValuationResult:
     # Avoid circular imports
     from .montecarlo import _permutation_montecarlo_shapley
@@ -173,6 +176,7 @@ def _permutation_montecarlo_one_step(
         done=MaxChecks(1),
         truncation=truncation,
         algorithm_name=algorithm,
+        seed=seed,
     )
     nans = np.isnan(result.values).sum()
     if nans > 0:
@@ -199,6 +203,7 @@ def truncated_montecarlo_shapley(
     n_jobs: int = 1,
     coordinator_update_period: int = 10,
     worker_update_period: int = 5,
+    seed: Seed = None,
 ) -> ValuationResult:
     """Monte Carlo approximation to the Shapley value of data points.
 
@@ -237,6 +242,7 @@ def truncated_montecarlo_shapley(
         accumulated results from the workers for convergence.
     :param worker_update_period: interval in seconds between different
         updates to and from the coordinator
+    :param seed: Seed for the random number generator.
     :return: Object with the data values.
 
     """
@@ -252,6 +258,9 @@ def truncated_montecarlo_shapley(
 
     accumulated_result = ValuationResult.zeros(algorithm=algorithm)
 
+    if not isinstance(seed, SeedSequence):
+        seed_sequence = SeedSequence(seed)
+
     with init_executor(max_workers=n_jobs, config=config) as executor:
         futures = set()
         # Initial batch of computations
@@ -261,6 +270,7 @@ def truncated_montecarlo_shapley(
                 u,
                 truncation,
                 algorithm,
+                seed=seed_sequence.spawn(1)[0],
             )
             futures.add(future)
         while futures:
@@ -283,6 +293,7 @@ def truncated_montecarlo_shapley(
                     u,
                     truncation,
                     algorithm,
+                    seed=seed_sequence.spawn(1)[0],
                 )
                 futures.add(future)
     return accumulated_result

@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import collections.abc
 import logging
+import numbers
 from dataclasses import dataclass
 from functools import total_ordering
 from numbers import Integral
@@ -52,7 +53,6 @@ from typing import (
     Literal,
     Optional,
     Sequence,
-    Tuple,
     TypeVar,
     Union,
     cast,
@@ -66,6 +66,7 @@ from numpy.typing import NDArray
 from pydvl.utils.dataset import Dataset
 from pydvl.utils.numeric import running_moments
 from pydvl.utils.status import Status
+from pydvl.utils.types import SeedOrGenerator
 
 try:
     import pandas  # Try to import here for the benefit of mypy
@@ -657,7 +658,11 @@ class ValuationResult(
 
     @classmethod
     def from_random(
-        cls, size: int, total: Optional[float] = None, **kwargs
+        cls,
+        size: int,
+        total: Optional[float] = None,
+        seed: SeedOrGenerator = None,
+        **kwargs,
     ) -> "ValuationResult":
         """Creates a :class:`ValuationResult` object and fills it with an array
         of random values from a uniform distribution in [-1,1]. The values can
@@ -666,6 +671,7 @@ class ValuationResult(
         :param size: Number of values to generate
         :param total: If set, the values are normalized to sum to this number
             ("efficiency" property of Shapley values).
+        :param seed: Seed for the random number generator.
         :param kwargs: Additional options to pass to the constructor of
             :class:`ValuationResult`. Use to override status, names, etc.
         :return: A valuation result with its status set to
@@ -678,7 +684,8 @@ class ValuationResult(
         if size < 1:
             raise ValueError("Size must be a positive integer")
 
-        values = np.random.uniform(low=-1, high=1, size=size)
+        rng = np.random.default_rng(seed)
+        values = rng.uniform(low=-1, high=1, size=size)
         if total is not None:
             values *= total / np.sum(values)
 

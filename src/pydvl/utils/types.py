@@ -2,11 +2,21 @@
 transformations. Some of it probably belongs elsewhere.
 """
 import inspect
-from typing import Any, Callable, Protocol, TypeVar
+import numbers
+from typing import Any, Callable, Optional, Protocol, TypeVar, Union
 
+import numpy as np
+from numpy.random import SeedSequence
 from numpy.typing import NDArray
 
-__all__ = ["SupervisedModel", "MapFunction", "ReduceFunction"]
+__all__ = [
+    "SupervisedModel",
+    "MapFunction",
+    "ReduceFunction",
+    "Seed",
+    "SeedOrGenerator",
+    "check_seed",
+]
 
 R = TypeVar("R", covariant=True)
 
@@ -64,3 +74,23 @@ def maybe_add_argument(fun: Callable, new_arg: str):
         return fun(*args, **kwargs)
 
     return wrapper
+
+
+Seed = Optional[Union[int, np.random.SeedSequence]]
+SeedOrGenerator = Union[Seed, np.random.Generator]
+
+
+def check_seed(seed: Seed, return_none: bool = True) -> Optional[SeedSequence]:
+    """Check if the seed is valid and return a SeedSequence object if it is. If it is
+    not valid, return None."""
+
+    if seed is None:
+        if return_none:
+            return None
+        else:
+            return SeedSequence()
+
+    elif isinstance(seed, int):
+        return SeedSequence(seed)
+    else:
+        return seed

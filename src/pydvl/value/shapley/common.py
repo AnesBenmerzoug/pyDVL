@@ -1,4 +1,8 @@
+import numbers
+from typing import Optional
+
 from pydvl.utils import Utility
+from pydvl.utils.types import Seed, SeedOrGenerator
 from pydvl.value.result import ValuationResult
 from pydvl.value.shapley.gt import group_testing_shapley
 from pydvl.value.shapley.knn import knn_shapley
@@ -24,6 +28,7 @@ def compute_shapley_values(
     done: StoppingCriterion = MaxUpdates(100),
     mode: ShapleyMode = ShapleyMode.TruncatedMontecarlo,
     n_jobs: int = 1,
+    seed: Seed = None,
     **kwargs,
 ) -> ValuationResult:
     """Umbrella method to compute Shapley values with any of the available
@@ -88,6 +93,7 @@ def compute_shapley_values(
     :param n_jobs: Number of parallel jobs (available only to some methods)
     :param mode: Choose which shapley algorithm to use. See
         :class:`~pydvl.value.shapley.ShapleyMode` for a list of allowed value.
+    :param seed: Seed for the random number generator.
 
     :return: A :class:`~pydvl.value.result.ValuationResult` object with the
         results.
@@ -101,11 +107,15 @@ def compute_shapley_values(
     if mode == ShapleyMode.TruncatedMontecarlo:
         truncation = kwargs.pop("truncation", NoTruncation())
         return truncated_montecarlo_shapley(  # type: ignore
-            u=u, done=done, n_jobs=n_jobs, truncation=truncation, **kwargs
+            u=u, done=done, n_jobs=n_jobs, truncation=truncation, seed=seed, **kwargs
         )
     elif mode == ShapleyMode.CombinatorialMontecarlo:
         return combinatorial_montecarlo_shapley(
-            u, done=done, n_jobs=n_jobs, progress=progress
+            u,
+            done=done,
+            n_jobs=n_jobs,
+            progress=progress,
+            seed=seed,
         )
     elif mode in (ShapleyMode.PermutationMontecarlo, ShapleyMode.ApproShapley):
         truncation = kwargs.pop("truncation", NoTruncation())
@@ -115,6 +125,7 @@ def compute_shapley_values(
             n_jobs=n_jobs,
             progress=progress,
             truncation=truncation,
+            seed=seed,
             **kwargs,
         )
     elif mode == ShapleyMode.CombinatorialExact:
@@ -138,6 +149,7 @@ def compute_shapley_values(
             max_q=int(kwargs.get("max_q", -1)),
             method=method,
             n_jobs=n_jobs,
+            seed=seed,
         )
     elif mode == ShapleyMode.KNN:
         return knn_shapley(u, progress=progress)
@@ -156,6 +168,7 @@ def compute_shapley_values(
             n_samples=n_samples,
             n_jobs=n_jobs,
             progress=progress,
+            seed=seed,
             **kwargs,
         )
     else:

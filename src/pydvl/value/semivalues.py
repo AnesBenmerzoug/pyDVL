@@ -42,18 +42,20 @@ of :footcite:t:`ghorbani_data_2019`, the Banzhaf index of
    Instead, we subsume this factor into the coefficient $w(k)$.
 
 """
-
+import logging
 import math
+import numbers
 import operator
 from enum import Enum
 from functools import reduce
 from itertools import takewhile
-from typing import Protocol, Type, cast
+from typing import Optional, Protocol, Type, cast
 
 import scipy as sp
 from tqdm import tqdm
 
 from pydvl.utils import MapReduceJob, ParallelConfig, Utility
+from pydvl.utils.types import Seed, SeedOrGenerator
 from pydvl.value import ValuationResult
 from pydvl.value.sampler import PermutationSampler, PowersetSampler
 from pydvl.value.stopping import MaxUpdates, StoppingCriterion
@@ -65,6 +67,8 @@ __all__ = [
     "semivalues",
     "SemiValueMode",
 ]
+
+log = logging.getLogger(__name__)
 
 
 class SVCoefficient(Protocol):
@@ -89,6 +93,7 @@ def _semivalues(
     *,
     progress: bool = False,
     job_id: int = 1,
+    seed: Seed = None,
 ) -> ValuationResult:
     r"""Serial computation of semi-values. This is a helper function for
     :func:`semivalues`.
@@ -99,8 +104,11 @@ def _semivalues(
     :param done: Stopping criterion.
     :param progress: Whether to display progress bars for each job.
     :param job_id: id to use for reporting progress.
+    :param seed: Seed for the random number generator.
     :return: Object with the results.
     """
+    log.warning(f"Seed is {seed}")
+    sampler.seed(seed)
     n = len(u.data.indices)
     result = ValuationResult.zeros(
         algorithm=f"semivalue-{str(sampler)}-{coefficient.__name__}",
@@ -130,11 +138,13 @@ def semivalues(
     n_jobs: int = 1,
     config: ParallelConfig = ParallelConfig(),
     progress: bool = False,
+    seed: Seed = None,
 ) -> ValuationResult:
     """
     Computes semi-values for a given utility function and subset sampler.
 
-    :param sampler: The subset sampler to use for utility computations.
+    :param sampler: The sampler type to use. See :mod:`pydvl.value.sampler`
+        for a list.
     :param u: Utility object with model, data, and scoring function.
     :param coefficient: The semi-value coefficient
     :param done: Stopping criterion.
@@ -142,6 +152,7 @@ def semivalues(
     :param config: Object configuring parallel computation, with cluster
         address, number of cpus, etc.
     :param progress: Whether to display progress bars for each job.
+    :param seed: Seed for the random number generator.
     :return: Object with the results.
 
     """
@@ -152,6 +163,7 @@ def semivalues(
         map_kwargs=dict(u=u, coefficient=coefficient, done=done, progress=progress),
         config=config,
         n_jobs=n_jobs,
+        seed=seed,
     )
     return map_reduce_job()
 
@@ -199,6 +211,7 @@ def compute_semivalues(
     mode: SemiValueMode = SemiValueMode.Shapley,
     sampler_t: Type[PowersetSampler] = PermutationSampler,
     n_jobs: int = 1,
+    seed: Seed = None,
     **kwargs,
 ) -> ValuationResult:
     """Entry point for most common semi-value computations. All are implemented
@@ -225,10 +238,10 @@ def compute_semivalues(
     :param sampler_t: The sampler type to use. See :mod:`pydvl.value.sampler`
         for a list.
     :param n_jobs: Number of parallel jobs to use.
+    :param seed: Seed for the random number generator.
     :param kwargs: Additional keyword arguments passed to
         :func:`~pydvl.value.semivalues.semivalues`.
     """
-    sampler_instance = sampler_t(u.data.indices)
     if mode == SemiValueMode.Shapley:
         coefficient = shapley_coefficient
     elif mode == SemiValueMode.BetaShapley:
@@ -240,4 +253,12 @@ def compute_semivalues(
     else:
         raise ValueError(f"Unknown mode {mode}")
     coefficient = cast(SVCoefficient, coefficient)
-    return semivalues(sampler_instance, u, coefficient, done, n_jobs=n_jobs, **kwargs)
+    return semivalues(
+        sampler_t(u.data.indices),
+        u,
+        coefficient,
+        done,
+        n_jobs=n_jobs,
+        seed=seed,
+        **kwargs,
+    )
